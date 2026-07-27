@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiffin Order Page</title>
+<style>
+  :root {
+    --bg-color: #fdfbf7;
+    --panel-bg: #f5f1e8;
+    --rust: #8b3a1a;
+    --rust-light: #a95333;
+    --text-main: #333333;
+    --text-light: #666666;
+    --border-color: #e5dfd3;
+    --green-tag: #dcfce7;
+    --green-text: #166534;
+  }
+
+  body { margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); }
+
+  /* Header */
+  .page-header { background: var(--bg-color); padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 20px; }
+  .header-title { font-weight: bold; font-size: 18px; }
+
+  /* Layout */
+  .order-container { max-width: 1100px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 1fr 380px; gap: 40px; }
+  .form-column { display: flex; flex-direction: column; gap: 30px; }
+  .page-title { margin-bottom: 20px; }
+  .subtitle { color: var(--rust-light); font-size: 12px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+  .page-title h1 { font-size: 42px; font-family: 'Georgia', serif; margin: 10px 0; color: #222; }
+
+  .form-step { background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 30px; }
+  .form-step h2 { font-size: 20px; font-family: 'Georgia', serif; margin-top: 0; margin-bottom: 10px; }
+  .step-desc { font-size: 14px; color: var(--text-light); margin-bottom: 20px; }
+
+  /* Inputs */
+  .input-group { margin-bottom: 20px; }
+  .input-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  input[type="text"], input[type="email"], textarea { width: 100%; padding: 12px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 15px; outline: none; }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Cards (Tiffin & Delivery) */
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+  .option-card { border: 1px solid var(--border-color); border-radius: 6px; padding: 20px; cursor: pointer; transition: all 0.2s; background: var(--bg-color); position: relative; }
+  .option-card.selected { border-color: var(--rust); background: #faf4f0; }
+  .card-header { display: flex; justify-content: space-between; font-size: 24px; margin-bottom: 10px; }
+  .check { display: none; background: var(--rust); color: white; width: 24px; height: 24px; border-radius: 50%; align-items: center; justify-content: center; font-size: 14px; }
+  .option-card.selected .check { display: flex; }
+  .option-card h3 { margin: 0 0 5px 0; font-size: 15px; }
+  .option-card .price { font-size: 14px; color: var(--rust); margin-bottom: 10px; }
+  .option-card .desc { font-size: 12px; color: var(--text-light); margin: 0; line-height: 1.4; }
+
+  /* Days selection */
+  .days-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .day-btn { padding: 12px 20px; border: 1px solid var(--border-color); background: white; border-radius: 4px; cursor: pointer; font-size: 15px; transition: 0.2s; user-select: none; }
+  .day-btn.selected { border-color: var(--text-main); background: var(--text-main); color: white; }
+  
+  /* Closed Days Formatting */
+  .day-btn.disabled-day { 
+    pointer-events: none; 
+    color: #999999; 
+    background-color: #faf9f7;
+    background-image: linear-gradient(to top right, transparent 48%, #cccccc 49%, #cccccc 51%, transparent 52%);
+    border-color: #eeeeee;
+  }
+  
+  .warning-text { color: #d97706; font-size: 14px; margin-top: 10px; font-weight: 500; display: none; }
+
+  /* Terms */
+  .tc-box { background: var(--panel-bg); padding: 20px; border-radius: 6px; font-size: 13px; line-height: 1.6; color: var(--text-main); margin-bottom: 20px; }
+  .tc-box ul { padding-left: 20px; margin-bottom: 0; }
+  .checkbox-label { display: flex; gap: 12px; font-size: 14px; margin-bottom: 15px; cursor: pointer; }
+  .checkbox-label input { width: 18px; height: 18px; accent-color: var(--rust); }
+  .form-warning { background: #fff8eb; border: 1px solid #fed7aa; color: #ea580c; padding: 15px; border-radius: 6px; font-size: 14px; margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+
+  /* RIGHT COLUMN - Sticky Calculator */
+  .summary-column { position: relative; }
+  .sticky-calculator { position: sticky; top: 20px; background: white; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+  .calc-header { background: var(--rust); color: white; padding: 30px; text-align: center; }
+  .summary-title { font-size: 12px; letter-spacing: 1px; display: block; margin-bottom: 10px; }
+  .giant-total { font-size: 42px; font-family: 'Georgia', serif; display: block; margin-bottom: 5px; }
+  .summary-subtitle { font-size: 13px; color: #ffd6c9; }
+
+  .calc-body { padding: 30px; }
+  .package-banner { background: var(--green-tag); color: var(--green-text); padding: 10px; border-radius: 6px; font-size: 13px; font-weight: bold; text-align: center; margin-bottom: 15px; display: none; }
+  .nudge-text { color: #d97706; font-size: 13px; font-weight: bold; margin-bottom: 15px; display: none; text-align: center; background: #fffbeb; padding: 8px; border-radius: 4px; }
+  
+  .summary-row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; color: var(--text-main); }
+  .row-left { display: flex; flex-direction: column; gap: 4px; }
+  .sub-text { font-size: 13px; color: var(--text-light); }
+  .tag { background: var(--green-tag); color: var(--green-text); font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+  .strike { text-decoration: line-through; color: var(--text-light); margin-right: 5px; }
+  .savings-row { color: var(--green-text); font-size: 14px; font-weight: 500; display: none; justify-content: space-between; margin-top: 10px; }
+  .vs-text { font-size: 12px; color: var(--text-light); font-weight: normal; display: block; margin-top: 4px; }
+
+  hr { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
+  .total-row { font-size: 18px; font-weight: bold; font-family: 'Georgia', serif; }
+
+  .pay-btn { width: 100%; padding: 16px; background: var(--panel-bg); color: var(--rust); border: 1px solid #d3cec4; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
+  .pay-btn:not(:disabled):hover { background: var(--rust); color: white; border-color: var(--rust); }
+  .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .secure-badge { text-align: center; margin-top: 15px; font-size: 12px; color: var(--text-light); }
+
+  .help-box { background: var(--panel-bg); padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid var(--border-color); font-size: 14px; line-height: 1.5; }
+  .help-box span { color: var(--rust); font-weight: bold; }
+
+  @media (max-width: 900px) {
+    .order-container { grid-template-columns: 1fr; }
+    .sticky-calculator { position: relative; top: 0; }
+    .card-grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <span class="header-title">Tiffin Order</span>
+</div>
+
+<div class="order-container">
+  <div class="form-column">
+    <div class="page-title">
+      <span class="subtitle">SAPNA'S GUJRATI KITCHEN</span>
+      <h1>Order Your Tiffin</h1>
+      <p>Build your weekly tiffin plan. Minimum 3 days per week. Prices update in real time as you choose your options.</p>
+    </div>
+
+    <section class="form-step">
+      <h2>1. Your Details</h2>
+      <div class="input-group"><label>Full Name *</label><input type="text" id="cust-name" placeholder="e.g. Priya Sharma"></div>
+      <div class="input-group"><label>Delivery Address (optional for collection)</label><textarea id="cust-address" placeholder="Full address including postcode"></textarea></div>
+      <div class="input-group"><label>Email Address *</label><input type="email" id="cust-email" placeholder="you@example.com"></div>
+    </section>
+
+    <section class="form-step">
+      <h2>2. Tiffin Type</h2>
+      <p class="step-desc">Select your daily plan. Package deals automatically apply when ordering 4 or more days.</p>
+      <div class="card-grid-3">
+        <div class="option-card tiffin-card selected" data-type="veg">
+          <div class="card-header"><span class="icon">🍃</span><span class="check">✓</span></div>
+          <h3>Vegetarian Tiffin</h3>
+          <p class="price">From <strong>£8.99</strong> / day</p>
+          <p class="desc">Dal, sabzi, rice or rotli, sweet — 100% vegetarian, traditional Gujarati.</p>
+        </div>
+        <div class="option-card tiffin-card" data-type="meat">
+          <div class="card-header"><span class="icon">🍲</span><span class="check">✓</span></div>
+          <h3>Meat Tiffin</h3>
+          <p class="price">From <strong>£10.99</strong> / day</p>
+          <p class="desc">All the classics plus a meat curry — chicken or lamb, rotated weekly.</p>
+        </div>
+        <div class="option-card tiffin-card" data-type="family">
+          <div class="card-header"><span class="icon">👨‍👩‍👧‍👦</span><span class="check">✓</span></div>
+          <h3>Family Mix</h3>
+          <p class="price"><strong>£21.99</strong> / day</p>
+          <p class="desc">A mix between veg and meat tiffin, generous to feed 3-5 people.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-step">
+      <h2>3. Select Your Days</h2>
+      <p class="step-desc">Minimum <strong>3 days</strong> per week. You have selected <span id="days-count-text">0</span> days.</p>
+      <div class="days-row" id="days-container">
+        <div class="day-btn disabled-day" data-index="0" title="Closed">Mon</div>
+        <div class="day-btn disabled-day" data-index="1" title="Closed">Tue</div>
+        <div class="day-btn" data-index="2">Wed</div>
+        <div class="day-btn" data-index="3">Thu</div>
+        <div class="day-btn" data-index="4">Fri</div>
+        <div class="day-btn" data-index="5">Sat</div>
+        <div class="day-btn" data-index="6">Sun</div>
+      </div>
+      <div class="warning-text" id="day-warning">⚠️ Please select at least 3 days.</div>
+    </section>
+
+    <section class="form-step">
+      <h2>4. Collection or Delivery?</h2>
+      <p class="step-desc">Delivery costs £2.99 per day ordered.</p>
+      <div class="card-grid">
+        <div class="option-card delivery-card selected" data-method="collection" data-price="0">
+          <div class="card-header"><span class="icon">🏪</span><span class="check">✓</span></div><h3>Collection</h3><p class="price">Free</p>
+        </div>
+        <div class="option-card delivery-card" data-method="delivery" data-price="2.99">
+          <div class="card-header"><span class="icon">🚚</span><span class="check">✓</span></div><h3>Delivery</h3><p class="price">+£2.99/day</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-step"><h2>5. Delivery Notes & Preferences</h2><textarea id="cust-notes" placeholder="e.g. Mild spice please. Leave at door if no answer. No nuts."></textarea></section>
+    
+    <section class="form-step">
+      <h2>6. Terms & Confirmation</h2>
+      <div class="tc-box"><p><strong>Terms & Conditions — Tiffin Service</strong></p><ul><li>Orders must be placed at least <strong>48 hours</strong> in advance.</li><li>Minimum order is <strong>3 days per week</strong>.</li><li>Cancellations must be made <strong>24 hours before</strong> the relevant day.</li></ul></div>
+      <label class="checkbox-label"><input type="checkbox" id="agree-tc"><span>I have read and agree to the Terms & Conditions above. *</span></label>
+      <label class="checkbox-label"><input type="checkbox" id="agree-opt"><span>I confirm my email address and agree to receive order confirmations.</span></label>
+      <div class="form-warning" id="form-warning"><span class="icon">ⓘ</span> Please complete all required fields, select at least 3 days, and accept the terms to proceed.</div>
+    </section>
+  </div>
+
+  <div class="summary-column">
+    <div class="sticky-calculator">
+      <div class="calc-header">
+        <span class="summary-title">PRICE SUMMARY</span>
+        <span class="giant-total" id="grand-total-display">£0.00</span>
+        <span class="summary-subtitle">select your options below</span>
+      </div>
+      
+      <div class="calc-body">
+        
+        <div class="nudge-text" id="deal-nudge">Select 1 more day to unlock the package deal!</div>
+        <div class="package-banner" id="package-banner">✓ Package Deal Enrolled</div>
+
+        <div class="summary-row">
+          <div class="row-left">
+            <span id="meal-summary-title">Veg tiffin × 0 days</span>
+            <span class="sub-text">
+              <span id="old-price" class="strike" style="display:none;"></span>
+              <span id="meal-summary-price">£9.99 per meal</span>
+              <span class="tag" id="meal-summary-tag">VEG</span>
+            </span>
+          </div>
+          <div class="row-right" id="meal-total-display">—</div>
+        </div>
+        
+        <div class="savings-row" id="savings-row">
+          <div class="row-left">
+            <span>Package deal saving</span>
+            <span class="vs-text" id="vs-text">vs 0 days × £0.00/day at standard pricing</span>
+          </div>
+          <div class="row-right" id="savings-total-display">−£0.00</div>
+        </div>
+
+        <hr />
+        <div class="summary-row">
+          <div class="row-left">
+            <span>Delivery / Collection</span>
+            <span class="sub-text" id="delivery-summary-text" style="display:none;">Delivery (£2.99 × 0 days)</span>
+          </div>
+          <div class="row-right" id="delivery-total-display">—</div>
+        </div>
+        <hr />
+        <div class="summary-row total-row"><span>Total</span><span id="final-total-display">£0.00</span></div>
+        
+        <button class="pay-btn" id="pay-btn" disabled><span class="lock-icon">🔒</span> Pay £0.00 Securely</button>
+        <div class="secure-badge">Secured by Stripe · SSL encrypted</div>
+      </div>
+    </div>
+    <div class="help-box"><strong>Need help?</strong><p>Call us on <span>020 4538 7327</span> or WhatsApp.</p></div>
+  </div>
+</div>
+
+<script>
+  // Base Prices and Rules
+  const pricingConfig = {
+    veg: { standard: 9.99, package: 8.99, hasPackage: true },
+    meat: { standard: 11.99, package: 10.99, hasPackage: true },
+    family: { standard: 21.99, package: 21.99, hasPackage: false }
+  };
+
+  // State
+  let tiffinType = 'veg';
+  let deliveryMethod = 'collection';
+  let deliveryRate = 0;
+  let selectedDays = 0;
+
+  // DOM Elements
+  const dayBtns = document.querySelectorAll('.day-btn');
+  const tiffinCards = document.querySelectorAll('.tiffin-card');
+  const deliveryCards = document.querySelectorAll('.delivery-card');
+  const nameInput = document.getElementById('cust-name');
+  const emailInput = document.getElementById('cust-email');
+  const addressInput = document.getElementById('cust-address');
+  const tcCheck = document.getElementById('agree-tc');
+
+  // Parse URL Parameters for Auto-Enrollment on Load
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const plan = urlParams.get('plan');
+    
+    if(plan === 'veg-package') { selectPlan('veg', true); } 
+    else if(plan === 'meat-package') { selectPlan('meat', true); } 
+    else if(plan === 'family') { selectPlan('family', false); }
+    
+    calculateTotal();
+  });
+
+  function selectPlan(type, autoSelectDays) {
+    // Select Tiffin Type
+    tiffinCards.forEach(c => c.classList.remove('selected'));
+    document.querySelector(`.tiffin-card[data-type="${type}"]`).classList.add('selected');
+    tiffinType = type;
+    
+    // Auto-tick 4 valid days (Wed-Sat) if package deal is triggered
+    if(autoSelectDays) {
+      dayBtns.forEach(btn => btn.classList.remove('selected'));
+      const availableDays = document.querySelectorAll('.day-btn:not(.disabled-day)');
+      for(let i=0; i<4; i++) { 
+        if(availableDays[i]) availableDays[i].classList.add('selected'); 
+      }
+      selectedDays = 4;
+    }
+  }
+
+  // Handle Event Listeners
+  tiffinCards.forEach(card => {
+    card.addEventListener('click', () => {
+      tiffinCards.forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      tiffinType = card.dataset.type;
+      calculateTotal();
+    });
+  });
+
+  deliveryCards.forEach(card => {
+    card.addEventListener('click', () => {
+      deliveryCards.forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      deliveryMethod = card.dataset.method;
+      deliveryRate = parseFloat(card.dataset.price);
+      calculateTotal();
+    });
+  });
+
+  dayBtns.forEach(btn => {
+    // Prevent disabled days from doing anything
+    if(btn.classList.contains('disabled-day')) return;
+
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('selected');
+      selectedDays = document.querySelectorAll('.day-btn.selected').length;
+      calculateTotal();
+    });
+  });
+
+  [nameInput, emailInput, addressInput, tcCheck].forEach(el => {
+    el.addEventListener('input', calculateTotal);
+    el.addEventListener('change', calculateTotal);
+  });
+
+  // Core Math & UI Update Function
+  function calculateTotal() {
+    const config = pricingConfig[tiffinType];
+    const isPackageEligible = config.hasPackage && selectedDays >= 4;
+    
+    // Set actual meal price based on package enrollment
+    const activePrice = isPackageEligible ? config.package : config.standard;
+    
+    const mealTotal = selectedDays * activePrice;
+    const deliveryTotal = deliveryMethod === 'delivery' ? (selectedDays * 2.99) : 0;
+    const grandTotal = mealTotal + deliveryTotal;
+    const savings = isPackageEligible ? ((config.standard - config.package) * selectedDays) : 0;
+
+    // Validation
+    const hasMinDays = selectedDays >= 3;
+    const isFormValid = hasMinDays && nameInput.value.trim() !== '' && emailInput.value.trim() !== '' && tcCheck.checked && (deliveryMethod === 'delivery' ? addressInput.value.trim() !== '' : true);
+
+    // Update Warnings
+    document.getElementById('days-count-text').innerText = selectedDays;
+    document.getElementById('day-warning').style.display = (selectedDays > 0 && selectedDays < 3) ? 'block' : 'none';
+    document.getElementById('form-warning').style.display = isFormValid ? 'none' : 'flex';
+    
+    // UI: Package Deal Nudge & Banners
+    const nudge = document.getElementById('deal-nudge');
+    const banner = document.getElementById('package-banner');
+    const oldPriceEl = document.getElementById('old-price');
+    const savingsRow = document.getElementById('savings-row');
+
+    if (config.hasPackage && selectedDays === 3) {
+      nudge.style.display = 'block';
+      nudge.innerText = `Select 1 more day to unlock the package deal!`;
+    } else {
+      nudge.style.display = 'none';
+    }
+
+    if (isPackageEligible) {
+      banner.style.display = 'block';
+      banner.innerText = `✓ ${tiffinType === 'veg' ? 'Veg' : 'Meat'} Tiffin Package Deal Enrolled`;
+      oldPriceEl.style.display = 'inline';
+      oldPriceEl.innerText = `£${config.standard.toFixed(2)}`;
+      savingsRow.style.display = 'flex';
+      document.getElementById('vs-text').innerText = `vs ${selectedDays} days × £${config.standard.toFixed(2)}/day at standard pricing`;
+      document.getElementById('savings-total-display').innerText = `−£${savings.toFixed(2)}`;
+    } else {
+      banner.style.display = 'none';
+      oldPriceEl.style.display = 'none';
+      savingsRow.style.display = 'none';
+    }
+
+    // UI: Text formatting
+    let typeLabel = tiffinType === 'veg' ? 'Veg' : (tiffinType === 'meat' ? 'Meat' : 'Family Mix');
+    document.getElementById('meal-summary-title').innerText = `${typeLabel} tiffin × ${selectedDays} days`;
+    document.getElementById('meal-summary-price').innerText = `£${activePrice.toFixed(2)} per meal`;
+    document.getElementById('meal-summary-tag').innerText = tiffinType.toUpperCase();
+    
+    // UI: Delivery
+    const delText = document.getElementById('delivery-summary-text');
+    if(deliveryMethod === 'delivery' && selectedDays > 0) {
+      delText.style.display = 'inline';
+      delText.innerText = `Delivery (£2.99 × ${selectedDays} days)`;
+    } else { delText.style.display = 'none'; }
+
+    // UI: Totals
+    document.getElementById('meal-total-display').innerText = selectedDays > 0 ? `£${mealTotal.toFixed(2)}` : '—';
+    document.getElementById('delivery-total-display').innerText = (deliveryMethod === 'delivery' && selectedDays > 0) ? `£${deliveryTotal.toFixed(2)}` : '—';
+    
+    const formattedTotal = `£${grandTotal.toFixed(2)}`;
+    document.getElementById('grand-total-display').innerText = formattedTotal;
+    document.getElementById('final-total-display').innerText = formattedTotal;
+
+    // Update Button
+    const btn = document.getElementById('pay-btn');
+    btn.disabled = !isFormValid;
+    btn.innerHTML = `<span class="lock-icon">🔒</span> Pay ${formattedTotal} Securely`;
+  }
+    // --- STRIPE CHECKOUT INTEGRATION ---
+const payBtnEl = document.getElementById('pay-btn');
+
+payBtnEl.addEventListener('click', async () => {
+  payBtnEl.disabled = true;
+  const originalText = payBtnEl.innerHTML;
+  payBtnEl.innerHTML = '🔒 Securely redirecting...';
+
+  try {
+    // This is the special Netlify URL
+    const response = await fetch('/.netlify/functions/checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        tiffinType: tiffinType,       
+        selectedDays: selectedDays,   
+        deliveryMethod: deliveryMethod, 
+        customerEmail: emailInput.value 
+      })
+    });
+
+    const session = await response.json();
+
+    if (session.url) {
+      window.location.href = session.url;
+    } else {
+      alert('Error: ' + (session.error || 'Something went wrong'));
+      payBtnEl.disabled = false;
+      payBtnEl.innerHTML = originalText;
+    }
+  } catch (err) {
+    alert("Failed to connect to checkout. Please try again.");
+    payBtnEl.disabled = false;
+    payBtnEl.innerHTML = originalText;
+  }
+});
+</script>
+</body>
+</html>
