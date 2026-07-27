@@ -101,7 +101,9 @@
   .pay-btn { width: 100%; padding: 16px; background: var(--panel-bg); color: var(--rust); border: 1px solid #d3cec4; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
   .pay-btn:not(:disabled):hover { background: var(--rust); color: white; border-color: var(--rust); }
   .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pay-btn a { color: inherit; text-decoration: none; display: block; }
   .secure-badge { text-align: center; margin-top: 15px; font-size: 12px; color: var(--text-light); }
+  .pay-error-text { color: #d97706; font-size: 13px; margin-top: 10px; text-align: center; display: none; }
 
   .help-box { background: var(--panel-bg); padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid var(--border-color); font-size: 14px; line-height: 1.5; }
   .help-box span { color: var(--rust); font-weight: bold; }
@@ -243,6 +245,7 @@
         <div class="summary-row total-row"><span>Total</span><span id="final-total-display">£0.00</span></div>
         
         <button class="pay-btn" id="pay-btn" disabled><span class="lock-icon">🔒</span> Pay £0.00 Securely</button>
+        <div class="pay-error-text" id="pay-error-text"></div>
         <div class="secure-badge">Secured by Stripe · SSL encrypted</div>
       </div>
     </div>
@@ -272,6 +275,8 @@
   const emailInput = document.getElementById('cust-email');
   const addressInput = document.getElementById('cust-address');
   const tcCheck = document.getElementById('agree-tc');
+  const payBtn = document.getElementById('pay-btn');
+  const payErrorText = document.getElementById('pay-error-text');
 
   // Parse URL Parameters for Auto-Enrollment on Load
   window.addEventListener('DOMContentLoaded', () => {
@@ -286,12 +291,10 @@
   });
 
   function selectPlan(type, autoSelectDays) {
-    // Select Tiffin Type
     tiffinCards.forEach(c => c.classList.remove('selected'));
     document.querySelector(`.tiffin-card[data-type="${type}"]`).classList.add('selected');
     tiffinType = type;
     
-    // Auto-tick 4 valid days (Wed-Sat) if package deal is triggered
     if(autoSelectDays) {
       dayBtns.forEach(btn => btn.classList.remove('selected'));
       const availableDays = document.querySelectorAll('.day-btn:not(.disabled-day)');
@@ -323,7 +326,6 @@
   });
 
   dayBtns.forEach(btn => {
-    // Prevent disabled days from doing anything
     if(btn.classList.contains('disabled-day')) return;
 
     btn.addEventListener('click', () => {
@@ -343,7 +345,6 @@
     const config = pricingConfig[tiffinType];
     const isPackageEligible = config.hasPackage && selectedDays >= 4;
     
-    // Set actual meal price based on package enrollment
     const activePrice = isPackageEligible ? config.package : config.standard;
     
     const mealTotal = selectedDays * activePrice;
@@ -408,46 +409,87 @@
     document.getElementById('grand-total-display').innerText = formattedTotal;
     document.getElementById('final-total-display').innerText = formattedTotal;
 
-    // Update Button
-    const btn = document.getElementById('pay-btn');
-    btn.disabled = !isFormValid;
-    btn.innerHTML = `<span class="lock-icon">🔒</span> Pay ${formattedTotal} Securely`;
-  }
-    // --- STRIPE CHECKOUT INTEGRATION ---
-const payBtnEl = document.getElementById('pay-btn');
-
-payBtnEl.addEventListener('click', async () => {
-  payBtnEl.disabled = true;
-  const originalText = payBtnEl.innerHTML;
-  payBtnEl.innerHTML = '🔒 Securely redirecting...';
-
-  try {
-    // This is the special Netlify URL
-    const response = await fetch('/.netlify/functions/checkout', {
-      method: 'POST',
-      body: JSON.stringify({
-        tiffinType: tiffinType,       
-        selectedDays: selectedDays,   
-        deliveryMethod: deliveryMethod, 
-        customerEmail: emailInput.value 
-      })
-    });
-
-    const session = await response.json();
-
-    if (session.url) {
-      window.location.href = session.url;
-    } else {
-      alert('Error: ' + (session.error || 'Something went wrong'));
-      payBtnEl.disabled = false;
-      payBtnEl.innerHTML = originalText;
+    // Enable/Disable validation check
+    payBtn.disabled = !isFormValid;
+    
+    // Only update text dynamically if it's not actively processing a redirect
+    if (!payBtn.dataset.processing) {
+      payBtn.innerHTML = `<span class="lock-icon">🔒</span> Pay ${formattedTotal} Securely`;
     }
-  } catch (err) {
-    alert("Failed to connect to checkout. Please try again.");
-    payBtnEl.disabled = false;
-    payBtnEl.innerHTML = originalText;
   }
-});
+
+  // Get the actual day labels selected (e.g. "Wed, Thu, Fri") for the receipt —
+  // selectedDays is just a count, the restaurant needs to know which days
+  function getSelectedDayNames() {
+    return Array.from(document.querySelectorAll('.day-btn.selected'))
+      .map(btn => btn.innerText.trim())
+      .join(', ');
+  }
+
+  // Helper to show an inline error instead of alert() — alerts are silently
+  // blocked inside Google Sites' sandboxed iframe (missing 'allow-modals')
+  function showPayError(message) {
+    payErrorText.innerText = message;
+    payErrorText.style.display = 'block';
+  }
+
+  function resetPayButton(originalHTML) {
+    payBtn.dataset.processing = "";
+    payBtn.disabled = false;
+    payBtn.innerHTML = originalHTML;
+  }
+
+  // --- ROBUST STRIPE CHECKOUT INTEGRATION ---
+  payBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (payBtn.disabled) return;
+
+    payErrorText.style.display = 'none';
+    payBtn.dataset.processing = "true";
+    payBtn.disabled = true;
+    const originalHTML = payBtn.innerHTML;
+    payBtn.innerHTML = '<span class="lock-icon">🔒</span> Securely redirecting...';
+
+    try {
+      const response = await fetch('https://tiffin-order-page.netlify.app/.netlify/functions/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tiffinType: tiffinType,
+          selectedDays: selectedDays,
+          dayNames: getSelectedDayNames(),
+          deliveryMethod: deliveryMethod,
+          customerEmail: emailInput.value,
+          customerName: nameInput.value,
+          customerAddress: addressInput.value,
+          notes: document.getElementById('cust-notes').value
+        })
+      });
+
+      const session = await response.json();
+
+      if (session.url) {
+        // Google Sites embeds this page in a sandboxed cross-origin iframe, which
+        // blocks window.top.location navigation. window.open (triggered by this
+        // real click, so it has user activation) is allowed through the sandbox.
+        const opened = window.open(session.url, '_blank');
+        if (!opened) {
+          // Popup blocked by the browser — fall back to a clickable link
+          payBtn.innerHTML = `<a href="${session.url}" target="_blank" rel="noopener">🔒 Click here to pay ${document.getElementById('final-total-display').innerText}</a>`;
+          payBtn.disabled = false;
+          payBtn.dataset.processing = "";
+        } else {
+          resetPayButton(originalHTML);
+        }
+      } else {
+        showPayError('Error: ' + (session.error || 'Something went wrong. Please try again.'));
+        resetPayButton(originalHTML);
+      }
+    } catch (err) {
+      showPayError('Failed to connect to checkout. Please check your internet connection and try again.');
+      resetPayButton(originalHTML);
+    }
+  });
 </script>
 </body>
 </html>
