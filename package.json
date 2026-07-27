@@ -1,0 +1,6 @@
+{
+  "name": "tiffin-site",
+  "dependencies": {
+    "stripe": "^14.0.0"
+  }
+}
