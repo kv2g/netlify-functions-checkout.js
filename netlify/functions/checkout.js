@@ -89,6 +89,7 @@ exports.handler = async (event) => {
       success_url: `${SITE_URL}/?status=success`,
       cancel_url: `${SITE_URL}/?status=cancel`,
       metadata: {
+        orderType: 'tiffin',
         customerName: trim(customerName),
         customerEmail: trim(customerEmail),
         customerAddress: trim(customerAddress),
