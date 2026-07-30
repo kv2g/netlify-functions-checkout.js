@@ -98,6 +98,7 @@ exports.handler = async (event) => {
       success_url: `${THALI_PAGE_URL}?${successParams}`,
       cancel_url: `${THALI_PAGE_URL}?status=cancel`,
       metadata: {
+        orderType: 'thali',
         customerName: trim(customerName),
         customerPhone: trim(customerPhone),
         customerAddress: trim(customerAddress),
