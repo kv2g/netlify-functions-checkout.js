@@ -1,8 +1,12 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// Set these in Netlify: Site settings > Environment variables
-//   STRIPE_WEBHOOK_SECRET   -> from Stripe Dashboard > Developers > Webhooks
-//   GOOGLE_SHEET_WEBHOOK_URL -> the /exec URL from your Apps Script deployment
+// Handles checkout.session.completed for BOTH the tiffin and thali checkout
+// flows, routed by the "orderType" metadata field set in each checkout
+// function. One Stripe webhook, one Apps Script URL, two sheet tabs.
+//
+// Env vars needed in Netlify:
+//   STRIPE_WEBHOOK_SECRET    -> from Stripe Dashboard > Webhooks
+//   GOOGLE_SHEET_WEBHOOK_URL -> your Apps Script /exec URL
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -29,19 +33,37 @@ exports.handler = async (event) => {
   if (stripeEvent.type === 'checkout.session.completed') {
     const session = stripeEvent.data.object;
     const meta = session.metadata || {};
+    const amountPaid = session.amount_total ? (session.amount_total / 100).toFixed(2) : '';
 
-    const orderPayload = {
-      orderId: session.id,
-      customerName: meta.customerName || '',
-      customerEmail: session.customer_email || meta.customerEmail || '',
-      customerAddress: meta.customerAddress || '',
-      tiffinType: meta.tiffinType || '',
-      daysCount: meta.daysCount || '',
-      dayNames: meta.dayNames || '',
-      deliveryMethod: meta.deliveryMethod || '',
-      notes: meta.notes || '',
-      amountPaid: session.amount_total ? (session.amount_total / 100).toFixed(2) : ''
-    };
+    let orderPayload;
+
+    if (meta.orderType === 'thali') {
+      orderPayload = {
+        orderType: 'thali',
+        orderId: session.id,
+        customerName: meta.customerName || '',
+        customerPhone: meta.customerPhone || '',
+        customerAddress: meta.customerAddress || '',
+        vegQty: meta.vegQty || '',
+        meatQty: meta.meatQty || '',
+        deliveryMethod: meta.deliveryMethod || '',
+        amountPaid
+      };
+    } else {
+      orderPayload = {
+        orderType: 'tiffin',
+        orderId: session.id,
+        customerName: meta.customerName || '',
+        customerEmail: session.customer_email || meta.customerEmail || '',
+        customerAddress: meta.customerAddress || '',
+        tiffinType: meta.tiffinType || '',
+        daysCount: meta.daysCount || '',
+        dayNames: meta.dayNames || '',
+        deliveryMethod: meta.deliveryMethod || '',
+        notes: meta.notes || '',
+        amountPaid
+      };
+    }
 
     try {
       await fetch(process.env.GOOGLE_SHEET_WEBHOOK_URL, {
@@ -50,9 +72,9 @@ exports.handler = async (event) => {
         body: JSON.stringify(orderPayload)
       });
     } catch (err) {
-      // Log but still return 200 to Stripe — we don't want Stripe retrying
-      // forever just because the Sheet write failed. Check Netlify function
-      // logs if orders stop appearing in the sheet.
+      // Log but still return 200 — don't want Stripe retrying forever just
+      // because the Sheet write failed. Check Netlify function logs if
+      // orders stop appearing.
       console.error('Failed to write order to Google Sheet:', err.message);
     }
   }
