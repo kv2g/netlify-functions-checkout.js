@@ -1,115 +1,59 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// TODO: update to the real published URL for THIS thali order page once your
-// domain is live — e.g. https://www.sapnasgujratikitchen.co.uk/order-thali
-const THALI_PAGE_URL = 'https://sites.google.com/view/sapnasgujratikitchen/takeaway-thali';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type'
-};
-
-function trim(str, max = 490) {
-  if (!str) return '';
-  return String(str).slice(0, max);
-}
-
 exports.handler = async (event) => {
+  // Handle CORS (so your Netlify function can safely talk to your Google Sites frontend)
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+      body: ''
+    };
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: CORS_HEADERS, body: 'Method Not Allowed' };
-  }
-
-  let body;
-  try {
-    body = JSON.parse(event.body);
-  } catch (e) {
-    return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Invalid request body' }) };
-  }
-
-  const { vegQty, meatQty, deliveryMethod, customerName, customerPhone, customerAddress } = body;
-
-  const veg = Number(vegQty) || 0;
-  const meat = Number(meatQty) || 0;
-
-  if (veg < 0 || meat < 0 || (veg + meat) === 0) {
-    return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'No thalis selected' }) };
-  }
-
-  if (!customerName || !customerPhone) {
-    return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Name and phone are required' }) };
-  }
-
-  if (deliveryMethod === 'delivery' && (!customerAddress || !customerAddress.trim())) {
-    return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Address required for delivery' }) };
-  }
-
-  const VEG_PRICE = 1599;   // pence
-  const MEAT_PRICE = 1899;  // pence
-  const DELIVERY_FEE = 299; // pence
-
-  const line_items = [];
-  if (veg > 0) {
-    line_items.push({
-      price_data: {
-        currency: 'gbp',
-        product_data: { name: 'Vegetarian Thali' },
-        unit_amount: VEG_PRICE,
-      },
-      quantity: veg,
-    });
-  }
-  if (meat > 0) {
-    line_items.push({
-      price_data: {
-        currency: 'gbp',
-        product_data: { name: 'Meat Thali' },
-        unit_amount: MEAT_PRICE,
-      },
-      quantity: meat,
-    });
-  }
-  if (deliveryMethod === 'delivery') {
-    line_items.push({
-      price_data: {
-        currency: 'gbp',
-        product_data: { name: 'Delivery Fee' },
-        unit_amount: DELIVERY_FEE,
-      },
-      quantity: 1,
-    });
+    return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   try {
-    const successParams = new URLSearchParams({
-      status: 'success',
-      name: customerName,
-      method: deliveryMethod
-    }).toString();
+    const data = JSON.parse(event.body);
+    
+    // Calculate totals securely on the backend (in pence for Stripe)
+    const vegTotal = data.vegQty * 1599; 
+    const meatTotal = data.meatQty * 1899; 
+    const deliveryFee = (data.deliveryMethod === 'delivery' && (data.vegQty + data.meatQty) > 0) ? 299 : 0;
+    const totalAmount = vegTotal + meatTotal + deliveryFee;
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items,
-      mode: 'payment',
-      success_url: `${THALI_PAGE_URL}?${successParams}`,
-      cancel_url: `${THALI_PAGE_URL}?status=cancel`,
+    if (totalAmount === 0) {
+      throw new Error("Order total cannot be zero.");
+    }
+
+    // CREATE A PAYMENT INTENT (This is the crucial change for headless processing)
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalAmount,
+      currency: 'gbp',
       metadata: {
-        orderType: 'thali',
-        customerName: trim(customerName),
-        customerPhone: trim(customerPhone),
-        customerAddress: trim(customerAddress),
-        deliveryMethod: trim(deliveryMethod),
-        vegQty: String(veg),
-        meatQty: String(meat)
+        customer_name: data.customerName,
+        customer_phone: data.customerPhone,
+        delivery_method: data.deliveryMethod,
+        customer_address: data.customerAddress || 'N/A'
       }
     });
 
-    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ url: session.url }) };
+    // Return the specific "client secret" that the HTML file needs
+    return {
+      statusCode: 200,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ clientSecret: paymentIntent.client_secret })
+    };
+
   } catch (error) {
-    return { statusCode: 500, headers: CORS_HEADERS, body: JSON.stringify({ error: error.message }) };
+    return {
+      statusCode: 500,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: error.message })
+    };
   }
 };
