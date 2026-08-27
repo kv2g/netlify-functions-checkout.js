@@ -2,7 +2,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // TODO: update to the real published URL for THIS thali order page once your
 // domain is live — e.g. https://www.sapnasgujratikitchen.co.uk/order-thali
-const THALI_PAGE_URL = 'https://sites.google.com/view/sapnasgujratikitchen/takeaway-thali';
+const THALI_PAGE_URL = 'https://www.sapnasgujratikitchen.co.uk/takeaway-thalis';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
