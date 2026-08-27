@@ -1,7 +1,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // TODO: change this to your real published site URL
-const SITE_URL = 'https://sites.google.com/view/sapnasgujratikitchen/home';
+const SITE_URL = 'https://www.sapnasgujratikitchen.co.uk/home';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
