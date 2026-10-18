@@ -37,6 +37,7 @@ exports.handler = async (event) => {
     selectedDays,
     dayNames,
     deliveryMethod,
+    isTaster,
     customerEmail,
     customerName,
     customerAddress,
@@ -44,9 +45,9 @@ exports.handler = async (event) => {
   } = body;
 
   const pricingConfig = {
-    veg: { standard: 999, package: 899, hasPackage: true },
-    meat: { standard: 1199, package: 1099, hasPackage: true },
-    family: { standard: 2199, package: 2199, hasPackage: false }
+    veg: { light: 1299, standard: 999, package: 899, hasPackage: true },
+    meat: { light: 1299, standard: 1199, package: 1099, hasPackage: true },
+    family: { light: 2199, standard: 2199, package: 2199, hasPackage: false }
   };
 
   const config = pricingConfig[tiffinType];
@@ -55,7 +56,8 @@ exports.handler = async (event) => {
   }
 
   const days = Number(selectedDays);
-  if (!Number.isInteger(days) || days < 3 || days > 7) {
+  // FIX: Allow 1 day minimum instead of 3
+  if (!Number.isInteger(days) || days < 1 || days > 7) {
     return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Invalid number of days' }) };
   }
 
@@ -63,12 +65,29 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Address required for delivery' }) };
   }
 
-  const isPackageEligible = config.hasPackage && days >= 4;
-  const activePrice = isPackageEligible ? config.package : config.standard;
+  // Check if taster pricing applies
+  const isTasterEligible = (days === 1 && (tiffinType === 'veg' || tiffinType === 'meat'));
+  const isTasterApplied = isTasterEligible && isTaster === true;
+
+  let activePrice;
+  if (isTasterApplied) {
+    activePrice = 699; // £6.99 in pence
+  } else if (days <= 2) {
+    activePrice = config.light;
+  } else if (config.hasPackage && days >= 4) {
+    activePrice = config.package;
+  } else {
+    activePrice = config.standard;
+  }
 
   const mealTotal = days * activePrice;
   const deliveryTotal = deliveryMethod === 'delivery' ? (days * 299) : 0;
   const grandTotalInPence = mealTotal + deliveryTotal;
+
+  let planName = `${tiffinType.toUpperCase()} Tiffin (${days} days)`;
+  if (isTasterApplied) {
+    planName = `${tiffinType.toUpperCase()} Tiffin - Taster/Sample (1 day)`;
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -78,7 +97,7 @@ exports.handler = async (event) => {
         price_data: {
           currency: 'gbp',
           product_data: {
-            name: `${tiffinType.toUpperCase()} Tiffin (${days} days)`,
+            name: planName,
             description: deliveryMethod === 'delivery' ? 'Includes Delivery' : 'Collection Only',
           },
           unit_amount: grandTotalInPence,
@@ -97,6 +116,7 @@ exports.handler = async (event) => {
         daysCount: String(days),
         dayNames: trim(dayNames),
         deliveryMethod: trim(deliveryMethod),
+        isTaster: isTasterApplied ? 'Yes' : 'No',
         notes: trim(notes)
       }
     });
